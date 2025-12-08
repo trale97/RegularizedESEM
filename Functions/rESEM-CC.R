@@ -1,3 +1,4 @@
+
 #### Title: Regularized ESEM method
 #### Author: Tra Le 
 #### Supervisor: Dr. Katrijn Van Deun
@@ -12,13 +13,15 @@
 CCrESEM <- function(DATA, R, CARD, MaxIter, eps) {
   J <- dim(DATA)[2]
   I <- dim(DATA)[1]
+  ssx <- sum(rowSums(DATA^2))
   convAO <- 0
   iter <- 1
   Lossc <- 1
-  Lossvec <- Lossc        #Used to compute convergence criterium
+  Lossvec <- c()     #Used to compute convergence criterium
   loadings <- INITLOADINGS(DATA, R, CARD)
   A <- loadings
   scores <- matrix(nrow = I, ncol = R)
+  converged <- FALSE
   if (sum(length(CARD)) > 1){
     CARDc <- J-CARD #Number of loadings -per PC- that have to be zero
     while (convAO == 0) {
@@ -27,7 +30,7 @@ CCrESEM <- function(DATA, R, CARD, MaxIter, eps) {
       scores <- sqrt(I) * svd(XP, R, R)$u %*% t(svd(XP, R, R)$v)
       A <- t(DATA) %*% scores/ I
       #Calculate loss
-      Loss <- RESIDUAL(DATA,scores,loadings)
+      Loss <- RESIDUAL(DATA,scores,loadings)/ssx
       Lossvec <- c(Lossvec,Loss)
       #2. Update loadings
       loadings <- A
@@ -36,17 +39,25 @@ CCrESEM <- function(DATA, R, CARD, MaxIter, eps) {
         loadings[ind$ix[1:CARDc[r]],r] <- 0
       } 
       #Calculate loss
-      Lossu <- RESIDUAL(DATA,scores,loadings)
+      Lossu <- RESIDUAL(DATA,scores,loadings)/ssx
       Lossvec <- c(Lossvec,Lossu)
       if (iter > MaxIter) {
         convAO <- 1
+      }
+      if (Lossc-Lossu < -1e-12) {
+        warning('Increase in Loss')
+        break
       }
       if (abs(Lossc-Lossu) < eps) {
         convAO <- 1
       }
       iter <- iter + 1
       Lossc <- Lossu
-    }} else {
+    }
+      if (iter < MaxIter) {
+        converged <- TRUE
+      }    
+    } else {
       CARDc <- J*R-CARD #Number of loadings -over all PCs- that have to be zero
       while (convAO == 0) {
         #1. Update component scores
@@ -54,17 +65,21 @@ CCrESEM <- function(DATA, R, CARD, MaxIter, eps) {
         scores <- sqrt(I) * svd(XP, R, R)$u %*% t(svd(XP, R, R)$v)
         A <- t(DATA) %*% scores / I
         #Calculate loss
-        Loss <- RESIDUAL(DATA,scores,loadings)
+        Loss <- RESIDUAL(DATA,scores,loadings)/ssx
         Lossvec <- c(Lossvec,Loss)
         #2. Update loadings
         loadings <- A
         ind <- sort(abs(A), index.return = TRUE)
         loadings[ind$ix[1:CARDc]] <- 0
         #Calculate loss
-        Lossu <- RESIDUAL(DATA,scores,loadings)
+        Lossu <- RESIDUAL(DATA,scores,loadings)/ssx
         Lossvec <- c(Lossvec,Lossu)
         if (iter > MaxIter ) {
           convAO <- 1
+        }
+        if (Lossc-Lossu < -1e-12) {
+          warning('Increase in Loss')
+          break
         }
         if (abs(Lossc-Lossu) < eps) {
           convAO <- 1
@@ -72,8 +87,11 @@ CCrESEM <- function(DATA, R, CARD, MaxIter, eps) {
         iter <- iter + 1
         Lossc <- Lossu
       }
+      if (iter < MaxIter) {
+        converged = TRUE
+      }
     }
-  uslpca <- list('scores' = scores, 'loadings' = loadings, 'Lossvec' = Lossvec, 'Residual' = Loss)
+  uslpca <- list('scores' = scores, 'loadings' = loadings, 'Lossvec' = Lossvec, 'Residual' = Lossu*ssx, 'Loss' = Lossu, 'converged' = converged)
   return(uslpca)
 }
 
@@ -136,17 +154,28 @@ MULTISTART_CCrESEM<- function(DATA, R, CARD, MaxIter, eps, nstarts){
   Tout3d <- list()
   LOSS <- array()
   LOSSvec <- list()
+  converged <- array()
+  Residual <- array()
   
   for (n in 1:nstarts){
-    result <- CCLSLV(DATA, R, CARD, MaxIter, eps)
+    result <- CCrESEM(DATA, R, CARD, MaxIter, eps)
     
     Pout3d[[n]] <- result$loadings
     Tout3d[[n]] <- result$scores
-    LOSS[n] <- result$Residual
+    LOSS[n] <- result$Loss
+    Residual[n] <- result$Residual
     LOSSvec[[n]] <- result$Lossvec
+    converged[n] <- result$converged
   }
+  # check how many times the minimum loss was achieved
+  best <- min(LOSS)
+  tol <- 1e-2
+  n_best <- sum(abs(LOSS - best) < tol)
+  n_distinct <- length(unique(round(LOSS, 2)))
+  
   # choose solution with lowest loss value
   k <- which(LOSS == min(LOSS))
+  
   if (length(k)>1){
     pos <- sample(1:length(k), 1)
     k <- k[pos]
@@ -157,13 +186,20 @@ MULTISTART_CCrESEM<- function(DATA, R, CARD, MaxIter, eps, nstarts){
   return_varselect$scores <- Tout3d[[k]]
   return_varselect$Lossvec <- LOSSvec
   return_varselect$Loss <- LOSS[k]
+  return_varselect$Residual <- Residual[k]
+  return_varselect$all_losses <- LOSS
+  return_varselect$n_best <- n_best
+  return_varselect$n_distinct <- n_distinct
+  return_varselect$converged <- converged[k]
+
   
   return(return_varselect)
 }
 
 IS_rESEM <- function(X, R, card, MaxIter, eps, nstarts){
+  
   #1. Obtain CCLSLV solution
-  CCLSLV <- MULTISTART_CCLSLV(X, R, CARD = card, MaxIter, eps, nstarts)
+  CCLSLV <- MULTISTART_CCrESEM(X, R, CARD = card, MaxIter, eps, nstarts)
   #2. Calculate BIC
   ssrespca <- 0
   J <- dim(X)[2]
@@ -181,15 +217,20 @@ IS_rESEM <- function(X, R, card, MaxIter, eps, nstarts){
   for (jr in 1:(J*R)){
     dfjspca <- dfjspca+length(unique(loading[jr][loading[jr]!=0]))
   }
-  bicvalue <- CCLSLV$Loss/ssrespca+log(dfjspca)
-  vs <- vzero-CCLSLV$Loss
+  bicvalue <- CCLSLV$Residual/ssrespca+log(dfjspca)
+  vs <- vzero-CCLSLV$Residual
   nrcoef <- J*R
   nrzeqcoef <- nrcoef-dfjspca
+  loadingMat <- round(CCLSLV$loadings,3)
   IS <- list()
   IS$value <- va*vs/vzero^2*nrzeqcoef/nrcoef
-  IS$vaf <- 1-(CCLSLV$Loss/vzero)
-  IS$propunique <- dfjspca/(nrcoef-nrzero)
+  IS$vaf <- 1-(CCLSLV$Residual/vzero)
+  #IS$propunique <- dfjspca/(nrcoef-nrzero)
   IS$propzero <- nrzero/nrcoef
+  IS$smallestP <- ifelse(sum(rowSums(loadingMat != 0)) < sum(card),
+                         0, min(abs(loadingMat[loadingMat != 0]))
+  )
+  IS$maxsdP <- max(apply(loadingMat, 2, sd))
   #return(bicvalue)
   return(IS)
 }
