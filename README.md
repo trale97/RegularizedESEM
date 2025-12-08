@@ -15,12 +15,12 @@ Folder [Functions](Functions) contains all the functions needed for the two meth
 - [rESEM-CC.R](Functions/rESEM-CC.R) for the cardinality constrained approach.
 - [rESEM_l1.R](Functions/rESEM_l1.R) for the one with the LASSO penalty.
 - [rESEMl1_undoshrinkage.R](Functions/rESEMl1_undoshrinkage.R) to undo the shrinkage for nonzero loadings.
-The first two files also include functions to run **Model Selection** based on the Index of Spareness.
+- [IS.R](Functions/IS.R) and [IS-lasso.R](Functions/IS-lasso.R) for model selection with the Index of Spareness for the cardinality-constrained and LASSO approaches, respectively.
+- [findLasso.R](Functions/findLasso.R) for binary search procedure to tune LASSO penalty parameter to reach a prespecified number of (non)zero loadings. Note that it does not always work perfectly!
 
 ## Simulation Study
-- Step 1: Run [corrmatrix_orthogonal.R](corrmatrix_orthogonal.R) to generate the population correlation matrix
-- Step 2: Run [datageneration_orthogonal.R](datageneration_orthogonal.R) and [datageneration_correlated](datageneration_correlated.R) to generate data for orthogonal and correlated latent variables scenarios, respectively. 
-- Step 3: Run one of the sim_*method*.R file to analyze the simulated data with one of the methods. For example, run [sim_CCrESEM.R](sim_CCrESEM.R) to run the analysis using the proposed method with cardinality constraint.
+Folder [Simulation Study](Simulation Study) contains scripts to generate the simulated data and script for each method to analyze the simulated data:
+- Run [data_run.R](Simulation Study/data_run.R) to generate the simulated data.
 
 Additionally, the subfolder [RegSEM-failed](https://github.com/trale97/RegularizedESEM/tree/main/Simulation%20Study/RegSEM-failed) contains codes for RegSEM to estimate the relationships among the factors, which produced problematic results. 
 
