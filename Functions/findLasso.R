@@ -1,3 +1,15 @@
+
+#' Title Binary search procedure for the LASSO approach 
+#'
+#' @param dat Matrix of standardized items
+#' @param Ptrue The true loading matrix 
+#' @param maxItr 
+#' @param lassou Upper bound of lambda
+#'
+#' @returns
+#' @export
+#' @author Niek de Schipper, PhD 
+#' @examples
 findLasso <- function(dat, Ptrue, maxItr, lassou){
   
   percentageZeroesInData <- sum(Ptrue == 0)
